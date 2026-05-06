@@ -1,0 +1,12 @@
+^.*\.md$
+^\.git$
+^\.Rproj\.user$
+^.*\.Rcheck$
+^src/.*\.o$
+^src/.*\.dll$
+^src/symbols\.rds$
+^TinyTeX.*\.exe$
+^_check_log\.txt$
+^_install_tex\.R$
+^_run_check\.R$
+^_test\.Rout$

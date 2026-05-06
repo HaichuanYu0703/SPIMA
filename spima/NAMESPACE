@@ -1,0 +1,54 @@
+useDynLib(spima, .registration = TRUE)
+importFrom(Rcpp, sourceCpp)
+importFrom(lme4, glmer, lmer, fixef)
+importFrom(parallel, mclapply, detectCores)
+importFrom(stats, rnorm, rbinom, rgamma, rlnorm, sd, var, quantile,
+           plogis, qlogis, dnorm, dunif, dlnorm, optim, setNames, na.omit,
+           coef, median, pnorm, runif, Gamma, as.formula, binomial, glm, vcov)
+importFrom(methods, is, as)
+
+export(spima)
+export(smc_control)
+export(prior)
+
+export(spima_bin_validate)
+export(spima_bin_simulate)
+export(spima_bin_analyze)
+export(spima_bin_observed_stats)
+export(spima_bin_distance)
+
+export(spima_cont_validate)
+export(spima_cont_simulate)
+export(spima_cont_analyze)
+export(spima_cont_observed_stats)
+export(spima_cont_distance)
+
+export(spima_gamma_validate)
+export(spima_gamma_simulate)
+export(spima_gamma_analyze)
+export(spima_gamma_observed_stats)
+export(spima_gamma_distance)
+
+export(spima_generic_validate)
+export(spima_generic_simulate)
+export(spima_generic_analyze)
+export(spima_generic_observed_stats)
+export(spima_generic_distance)
+
+export(spima_int)
+export(spima_int_validate)
+
+S3method(print, spima_int)
+S3method(print, summary.spima_int)
+S3method(summary, spima_int)
+S3method(as.data.frame, spima_int)
+
+S3method(plot, spima)
+S3method(plot, spima_int)
+S3method(plot, spima_subgroup)
+S3method(print, spima)
+S3method(print, spima_abc)
+S3method(print, spima_subgroup)
+S3method(summary, spima)
+S3method(as.data.frame, spima)
+S3method(as.data.frame, spima_subgroup)

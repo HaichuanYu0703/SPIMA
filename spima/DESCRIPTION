@@ -1,0 +1,35 @@
+Package: spima
+Title: Simulated Pseudo-Individual Data Meta-Analysis with ABC-SMC
+Version: 0.1.0
+Authors@R: c(
+    person("Yu", "Haichuan", email="yuhaichuan@whu.edu.cn",
+           role=c("aut", "cre", "cph"))
+  )
+Author: Yu Haichuan
+Maintainer: Yu Haichuan <yuhaichuan@whu.edu.cn>
+Description: Meta-analysis via ABC-SMC by simulating pseudo-individual
+    data from published group-level summary statistics. Handles binary,
+    continuous, and generic effect-size outcomes within a one-stage
+    mixed-model framework. Supports subgroup analysis.
+License: MIT + file LICENSE
+Depends:
+    R (>= 3.5.0)
+Imports:
+    lme4,
+    parallel,
+    stats,
+    methods,
+    Rcpp
+Suggests:
+    ggplot2,
+    testthat,
+    knitr,
+    rmarkdown
+LinkingTo:
+    Rcpp,
+    RcppArmadillo
+SystemRequirements: GNU make
+Encoding: UTF-8
+LazyData: true
+NeedsCompilation: yes
+Config/roxygen2/version: 8.0.0

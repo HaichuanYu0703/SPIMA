@@ -1,0 +1,50 @@
+# R
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+*.Rproj
+
+# R package build artifacts
+spima/src/*.o
+spima/src/*.so
+spima/src/*.dll
+spima/src/symbols.rds
+spima.Rcheck/
+spima_*.tar.gz
+
+# Output files
+output/
+*.rda
+*.Rdata
+validation7_results.rda
+validation7_results.txt
+
+# Logs
+*.log
+
+# Default R plots output
+Rplots.pdf
+
+# Reference PDFs and generated test outputs
+test/ref/
+test/*.pdf
+test/*.csv
+test/*_results.txt
+test/fig*.pdf
+
+# Manuscript (separate repo)
+manuscript/
+spima_blueprint.md
+
+# Test suite (separate repo)
+test/
+
+# Config
+.mcp.json
+.claude/
+.vscode/
+
+# OS
+Thumbs.db
+.DS_Store
