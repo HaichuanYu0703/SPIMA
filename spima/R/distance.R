@@ -22,22 +22,15 @@ spima_bin_distance <- function(sim_stats, obs_stats) {
   dist_weighted_euclidean(sim_stats[nm], obs_stats[nm], w)
 }
 
-#' @describeIn distance_functions Continuous outcome: sum of squared
-#'   standardised differences in means and SDs.
+#' @describeIn distance_functions Continuous outcome: inverse-variance weighted
+#'   Euclidean distance on study-level mean differences.
 spima_cont_distance <- function(sim_stats, obs_stats) {
   nm_m <- intersect(names(sim_stats$means), names(obs_stats$means))
-  nm_s <- intersect(names(sim_stats$sds),   names(obs_stats$sds))
   if (length(nm_m) == 0) return(Inf)
 
-  d_mean <- (sim_stats$means[nm_m] - obs_stats$means[nm_m]) /
-            abs(obs_stats$means[nm_m] + 1e-8)
-  d_sd <- if (length(nm_s) > 0) {
-    (sim_stats$sds[nm_s] - obs_stats$sds[nm_s]) /
-      abs(obs_stats$sds[nm_s] + 1e-8)
-  } else numeric(0)
-
-  all_d <- c(d_mean, d_sd)
-  dist_euclidean(all_d, numeric(length(all_d)))
+  # Inverse-variance weights from pooled SDs
+  w <- 1 / (obs_stats$sds[nm_m]^2 + 1e-8)
+  dist_weighted_euclidean(sim_stats$means[nm_m], obs_stats$means[nm_m], w)
 }
 
 #' Generic (effect-size) distance: weighted Euclidean distance on effects
