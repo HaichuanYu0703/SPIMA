@@ -186,8 +186,9 @@ run_module_cont <- function(data, input_spec, prior_obj, ctrl, ...,
   } else {
     # ---- Gaussian module ----
     has_mean_sd <- all(c("mean", "sd") %in% names(input_spec))
+    has_mean_range <- all(c("mean", "min", "max") %in% names(input_spec)) && !"sd" %in% names(input_spec)
 
-    if (has_mean_sd) {
+    if (has_mean_sd || has_mean_range) {
       # ---- Standard mean/SD path ----
       spima_cont_validate(data, input_spec)
       obs_stats <- spima_cont_observed_stats(data, input_spec)
