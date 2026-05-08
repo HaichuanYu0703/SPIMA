@@ -201,6 +201,99 @@ plot.spima <- function(x, ...) {
 }
 
 #' @export
+forest <- function(x, ...) {
+  UseMethod("forest")
+}
+
+#' Forest Plot for SPI-MA Results
+#'
+#' Draws a forest plot showing study-level effect estimates with 95\% CIs
+#' and the SPI-MA pooled posterior estimate.
+#'
+#' @param x A \code{spima} result object.
+#' @param ... Additional arguments passed to \code{plot}.
+#' @export
+forest.spima <- function(x, ...) {
+  post <- as.data.frame(x)
+  mu_post <- post$q50[post$parameter == "mu"]
+  mu_ci   <- c(post$q2.5[post$parameter == "mu"], post$q97.5[post$parameter == "mu"])
+
+  # ---- Compute study-level estimates ----
+  if (x$outcome_type == "continuous") {
+    obs <- spima_cont_observed_stats(x$data, x$input_spec)
+    yi <- obs$means
+    studies <- names(yi)
+    sei <- numeric(length(studies)); names(sei) <- studies
+    grp_col <- x$input_spec[["group"]]
+    n_col   <- x$input_spec[["n"]]
+    for (s in studies) {
+      rows <- x$data[x$data[[x$input_spec[["study"]]]] == s, ]
+      grps <- unique(rows[[grp_col]])
+      n_c <- sum(rows[[n_col]][rows[[grp_col]] == grps[1]], na.rm = TRUE)
+      n_t <- sum(rows[[n_col]][rows[[grp_col]] == grps[2]], na.rm = TRUE)
+      sei[s] <- obs$sds[s] * sqrt(1/n_c + 1/n_t)
+    }
+    null_val <- 0; xlab <- "Mean Difference"
+  } else if (x$outcome_type == "binary") {
+    obs <- spima_bin_observed_stats(x$data, x$input_spec)
+    yi <- obs
+    sei <- sqrt(1 / attr(obs, "weights"))
+    null_val <- 0; xlab <- "Log Odds Ratio"
+  } else if (x$outcome_type == "generic") {
+    obs <- spima_generic_observed_stats(x$data, x$input_spec)
+    yi <- obs
+    sei <- sqrt(1 / attr(obs, "weights"))
+    null_val <- 0; xlab <- "Effect Estimate"
+  } else {
+    stop("Forest plot not available for this outcome type.")
+  }
+
+  # ---- Forest plot (base graphics) ----
+  k <- length(yi)
+  old_par <- par(mar = c(4, 6, 3, 6), no.readonly = TRUE)
+  on.exit(par(old_par))
+
+  y <- seq(k + 2, 1, length.out = k + 1)
+  y_study <- y[1:k]
+  y_pool  <- y[k + 1]
+
+  all_lo <- c(yi - 1.96 * sei, mu_ci[1])
+  all_hi <- c(yi + 1.96 * sei, mu_ci[2])
+  xlim <- range(c(all_lo, all_hi, null_val), na.rm = TRUE)
+  xlim <- xlim + c(-1, 1) * diff(xlim) * 0.1
+
+  plot(NA, xlim = xlim, ylim = c(0.5, k + 2.5),
+       xlab = xlab, ylab = "", yaxt = "n", bty = "n", ...)
+  abline(v = null_val, lty = 2, col = "grey60")
+
+  for (i in seq_len(k)) {
+    ci_lo <- yi[i] - 1.96 * sei[i]
+    ci_hi <- yi[i] + 1.96 * sei[i]
+    segments(ci_lo, y_study[i], ci_hi, y_study[i], col = "grey40", lwd = 1.5)
+    points(yi[i], y_study[i], pch = 15, cex = 1.2, col = "grey40")
+  }
+
+  diamond_x <- c(mu_post, mu_ci[1], mu_post, mu_ci[2])
+  diamond_y <- y_pool + c(0, -0.25, 0, 0.25)
+  polygon(diamond_x, diamond_y, col = "#2166AC", border = "#2166AC")
+
+  usr <- par("usr")
+  xpad <- diff(usr[1:2]) * 0.02
+  text(usr[1] - xpad, y_study, names(yi), adj = 1, cex = 0.75, xpd = TRUE)
+  text(usr[1] - xpad, y_pool, "SPI-MA (posterior)", adj = 1, cex = 0.8, font = 2, xpd = TRUE)
+
+  for (i in seq_len(k)) {
+    txt <- sprintf("%.2f [%.2f, %.2f]", yi[i], yi[i] - 1.96 * sei[i], yi[i] + 1.96 * sei[i])
+    text(usr[2] + xpad, y_study[i], txt, adj = 0, cex = 0.65, xpd = TRUE)
+  }
+  text(usr[2] + xpad, y_pool,
+       sprintf("%.2f [%.2f, %.2f]", mu_post, mu_ci[1], mu_ci[2]),
+       adj = 0, cex = 0.7, font = 2, xpd = TRUE)
+
+  invisible(x)
+}
+
+#' @export
 print.spima_abc <- function(x, ...) {
   cat("spima ABC-SMC result\n")
   cat("Generations:", length(x$generations), "\n")

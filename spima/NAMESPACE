@@ -35,6 +35,7 @@ export(spima_generic_analyze)
 export(spima_generic_observed_stats)
 export(spima_generic_distance)
 
+export(forest)
 export(spima_int)
 export(spima_int_validate)
 
@@ -43,6 +44,7 @@ S3method(print, summary.spima_int)
 S3method(summary, spima_int)
 S3method(as.data.frame, spima_int)
 
+S3method(forest, spima)
 S3method(plot, spima)
 S3method(plot, spima_int)
 S3method(plot, spima_subgroup)
