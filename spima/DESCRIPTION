@@ -1,6 +1,6 @@
 Package: spima
 Title: Simulated Pseudo-Individual Data Meta-Analysis with ABC-SMC
-Version: 0.1.0
+Version: 0.2.0
 Authors@R: c(
     person("Yu", "Haichuan", email="yuhaichuan@whu.edu.cn",
            role=c("aut", "cre", "cph"))
