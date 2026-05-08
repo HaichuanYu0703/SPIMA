@@ -92,7 +92,12 @@ spima_cont_simulate <- function(study_spec, params, input_spec) {
   studies    <- mapped$ids
 
   # ---- Two-group mean/SD path: C++ accelerated ----
-  if (has_mean_sd && !is.null(grp_col) && length(unique(study_spec[[grp_col]])) >= 2) {
+  # Only use C++ path when ALL studies have non-NA sd values
+  all_have_sd <- has_mean_sd && all(vapply(studies, function(sid) {
+    r <- study_spec[study_spec[[study_col]] == sid, , drop = FALSE]
+    any(!is.na(r[[input_spec[["sd"]]]]))
+  }, logical(1)))
+  if (all_have_sd && !is.null(grp_col) && length(unique(study_spec[[grp_col]])) >= 2) {
     n_studies <- length(studies)
     n_c_vec <- numeric(n_studies)
     n_t_vec <- numeric(n_studies)
@@ -132,31 +137,35 @@ spima_cont_simulate <- function(study_spec, params, input_spec) {
     rows <- study_spec[study_spec[[study_col]] == sid, , drop = FALSE]
     n_val <- sum(rows[[n_col]], na.rm = TRUE)
 
-    # Extract location (mu) and scale (sigma) from the available format
-    if (has_mean_sd) {
+    # Extract location (mu) and scale (sigma) from available format (per-study)
+    r_has_sd <- all(c("mean","sd") %in% names(input_spec)) && any(!is.na(rows[[input_spec[["sd"]]]]))
+    r_has_mean_rng <- all(c("mean","min","max") %in% names(input_spec)) && any(!is.na(rows[[input_spec[["mean"]]]])) && any(!is.na(rows[[input_spec[["min"]]]]))
+    r_has_med_iqr <- all(c("median","q1","q3") %in% names(input_spec)) && any(!is.na(rows[[input_spec[["median"]]]])) && any(!is.na(rows[[input_spec[["q1"]]]]))
+    r_has_med_rng <- all(c("median","min","max") %in% names(input_spec)) && any(!is.na(rows[[input_spec[["median"]]]])) && any(!is.na(rows[[input_spec[["min"]]]]))
+
+    if (r_has_sd) {
       mean_val <- mean(rows[[input_spec[["mean"]]]], na.rm = TRUE)
       sd_val   <- mean(rows[[input_spec[["sd"]]]],   na.rm = TRUE)
-    } else if (has_mean_range) {
+    } else if (r_has_mean_rng) {
       mean_val <- mean(rows[[input_spec[["mean"]]]], na.rm = TRUE)
       min_val  <- mean(rows[[input_spec[["min"]]]],  na.rm = TRUE)
       max_val  <- mean(rows[[input_spec[["max"]]]],  na.rm = TRUE)
       range_val <- max_val - min_val
       p <- max(0.001, min(0.999, (n_val - 0.375) / (n_val + 0.25)))
       sd_val <- range_val / (2 * stats::qnorm(p))
-    } else {
+    } else if (r_has_med_iqr) {
       median_val <- mean(rows[[input_spec[["median"]]]], na.rm = TRUE)
-      if (has_five || has_median_iqr) {
-        q1_val <- mean(rows[[input_spec[["q1"]]]], na.rm = TRUE)
-        q3_val <- mean(rows[[input_spec[["q3"]]]], na.rm = TRUE)
-        sd_val <- (q3_val - q1_val) / 1.35
-      } else {
-        # Range-only: estimate sigma via Wan et al. 2014
-        min_val   <- mean(rows[[input_spec[["min"]]]], na.rm = TRUE)
-        max_val   <- mean(rows[[input_spec[["max"]]]], na.rm = TRUE)
-        range_val <- max_val - min_val
-        p <- max(0.001, min(0.999, (n_val - 0.375) / (n_val + 0.25)))
-        sd_val <- range_val / (2 * stats::qnorm(p))
-      }
+      q1_val <- mean(rows[[input_spec[["q1"]]]], na.rm = TRUE)
+      q3_val <- mean(rows[[input_spec[["q3"]]]], na.rm = TRUE)
+      sd_val <- (q3_val - q1_val) / 1.35
+      mean_val <- median_val
+    } else if (r_has_med_rng) {
+      median_val <- mean(rows[[input_spec[["median"]]]], na.rm = TRUE)
+      min_val   <- mean(rows[[input_spec[["min"]]]],  na.rm = TRUE)
+      max_val   <- mean(rows[[input_spec[["max"]]]],  na.rm = TRUE)
+      range_val <- max_val - min_val
+      p <- max(0.001, min(0.999, (n_val - 0.375) / (n_val + 0.25)))
+      sd_val <- range_val / (2 * stats::qnorm(p))
       mean_val <- median_val
     }
 
@@ -170,12 +179,12 @@ spima_cont_simulate <- function(study_spec, params, input_spec) {
       ctrl_rows <- rows[rows[[grp_col]] == groups[1], , drop = FALSE]
       trt_rows  <- rows[rows[[grp_col]] == groups[2], , drop = FALSE]
 
-      if (has_mean_sd) {
+      if (r_has_sd) {
         mean_c <- mean(ctrl_rows[[input_spec[["mean"]]]], na.rm = TRUE)
         sd_c   <- mean(ctrl_rows[[input_spec[["sd"]]]],   na.rm = TRUE)
         mean_t <- mean(trt_rows[[input_spec[["mean"]]]],  na.rm = TRUE)
         sd_t   <- mean(trt_rows[[input_spec[["sd"]]]],    na.rm = TRUE)
-      } else if (has_mean_range) {
+      } else if (r_has_mean_rng) {
         mean_c <- mean(ctrl_rows[[input_spec[["mean"]]]], na.rm = TRUE)
         mean_t <- mean(trt_rows[[input_spec[["mean"]]]],  na.rm = TRUE)
         min_c  <- mean(ctrl_rows[[input_spec[["min"]]]],  na.rm = TRUE)
@@ -188,29 +197,30 @@ spima_cont_simulate <- function(study_spec, params, input_spec) {
         p_t <- max(0.001, min(0.999, (n_t_arm - 0.375) / (n_t_arm + 0.25)))
         sd_c <- (max_c - min_c) / (2 * stats::qnorm(p_c))
         sd_t <- (max_t - min_t) / (2 * stats::qnorm(p_t))
-      } else {
+      } else if (r_has_med_iqr) {
         med_c <- mean(ctrl_rows[[input_spec[["median"]]]], na.rm = TRUE)
         med_t <- mean(trt_rows[[input_spec[["median"]]]], na.rm = TRUE)
-        if (has_five || has_median_iqr) {
-          q1_c <- mean(ctrl_rows[[input_spec[["q1"]]]], na.rm = TRUE)
-          q3_c <- mean(ctrl_rows[[input_spec[["q3"]]]], na.rm = TRUE)
-          sd_c <- (q3_c - q1_c) / 1.35
-          q1_t <- mean(trt_rows[[input_spec[["q1"]]]], na.rm = TRUE)
-          q3_t <- mean(trt_rows[[input_spec[["q3"]]]], na.rm = TRUE)
-          sd_t <- (q3_t - q1_t) / 1.35
-        } else {
-          # Range-only
-          min_c <- mean(ctrl_rows[[input_spec[["min"]]]], na.rm = TRUE)
-          max_c <- mean(ctrl_rows[[input_spec[["max"]]]], na.rm = TRUE)
-          min_t <- mean(trt_rows[[input_spec[["min"]]]], na.rm = TRUE)
-          max_t <- mean(trt_rows[[input_spec[["max"]]]], na.rm = TRUE)
-          n_c_arm <- sum(ctrl_rows[[n_col]], na.rm = TRUE)
-          n_t_arm <- sum(trt_rows[[n_col]], na.rm = TRUE)
-          p_c <- max(0.001, min(0.999, (n_c_arm - 0.375) / (n_c_arm + 0.25)))
-          p_t <- max(0.001, min(0.999, (n_t_arm - 0.375) / (n_t_arm + 0.25)))
-          sd_c <- (max_c - min_c) / (2 * stats::qnorm(p_c))
-          sd_t <- (max_t - min_t) / (2 * stats::qnorm(p_t))
-        }
+        q1_c <- mean(ctrl_rows[[input_spec[["q1"]]]], na.rm = TRUE)
+        q3_c <- mean(ctrl_rows[[input_spec[["q3"]]]], na.rm = TRUE)
+        q1_t <- mean(trt_rows[[input_spec[["q1"]]]], na.rm = TRUE)
+        q3_t <- mean(trt_rows[[input_spec[["q3"]]]], na.rm = TRUE)
+        sd_c <- (q3_c - q1_c) / 1.35
+        sd_t <- (q3_t - q1_t) / 1.35
+        mean_c <- med_c
+        mean_t <- med_t
+      } else if (r_has_med_rng) {
+        med_c <- mean(ctrl_rows[[input_spec[["median"]]]], na.rm = TRUE)
+        med_t <- mean(trt_rows[[input_spec[["median"]]]], na.rm = TRUE)
+        min_c <- mean(ctrl_rows[[input_spec[["min"]]]], na.rm = TRUE)
+        max_c <- mean(ctrl_rows[[input_spec[["max"]]]], na.rm = TRUE)
+        min_t <- mean(trt_rows[[input_spec[["min"]]]], na.rm = TRUE)
+        max_t <- mean(trt_rows[[input_spec[["max"]]]], na.rm = TRUE)
+        n_c_arm <- sum(ctrl_rows[[n_col]], na.rm = TRUE)
+        n_t_arm <- sum(trt_rows[[n_col]], na.rm = TRUE)
+        p_c <- max(0.001, min(0.999, (n_c_arm - 0.375) / (n_c_arm + 0.25)))
+        p_t <- max(0.001, min(0.999, (n_t_arm - 0.375) / (n_t_arm + 0.25)))
+        sd_c <- (max_c - min_c) / (2 * stats::qnorm(p_c))
+        sd_t <- (max_t - min_t) / (2 * stats::qnorm(p_t))
         mean_c <- med_c
         mean_t <- med_t
       }
@@ -355,14 +365,14 @@ spima_cont_observed_stats <- function(data, input_spec) {
   means <- sds <- numeric(length(studies))
   names(means) <- names(sds) <- studies
 
-    for (i in seq_along(studies)) {
+      for (i in seq_along(studies)) {
     sid <- studies[i]
     rows <- data[data[[study_col]] == sid, , drop = FALSE]
 
     # Per-study format detection based on non-NA values
     has_sd <- all(c("mean", "sd") %in% names(input_spec)) && any(!is.na(rows[[input_spec[["sd"]]]]))
     has_mean_rng <- all(c("mean", "min", "max") %in% names(input_spec)) && any(!is.na(rows[[input_spec[["mean"]]]])) && any(!is.na(rows[[input_spec[["min"]]]]))
-    has_med_iqr <- all(c("median", "q1", "q3") %in% names(input_spec)) && any(!is.na(rows[[input_spec[["median"]]]]))
+    has_med_iqr <- all(c("median", "q1", "q3") %in% names(input_spec)) && any(!is.na(rows[[input_spec[["median"]]]])) && any(!is.na(rows[[input_spec[["q1"]]]]))
     has_med_rng <- all(c("median", "min", "max") %in% names(input_spec)) && any(!is.na(rows[[input_spec[["median"]]]])) && any(!is.na(rows[[input_spec[["min"]]]]))
 
     if (has_sd) {
@@ -395,11 +405,11 @@ spima_cont_observed_stats <- function(data, input_spec) {
       ctrl <- rows[rows[[grp_col]] == groups[1], ]
       trt  <- rows[rows[[grp_col]] == groups[2], ]
 
-      # Re-detect format for this study (group level)
-      g_has_sd <- all(c("mean","sd") %in% names(input_spec)) && any(!is.na(ctrl[[input_spec[["sd"]]]]))
-      g_has_mean_rng <- all(c("mean","min","max") %in% names(input_spec)) && any(!is.na(ctrl[[input_spec[["min"]]]]))
-      g_has_med_iqr <- all(c("median","q1","q3") %in% names(input_spec)) && any(!is.na(ctrl[[input_spec[["q1"]]]]))
-      g_has_med_rng <- all(c("median","min","max") %in% names(input_spec)) && any(!is.na(ctrl[[input_spec[["min"]]]]))
+      # Re-detect format for this study (group level) -- check ALL key columns non-NA
+      g_has_sd <- all(c("mean","sd") %in% names(input_spec)) && any(!is.na(ctrl[[input_spec[["mean"]]]])) && any(!is.na(ctrl[[input_spec[["sd"]]]]))
+      g_has_mean_rng <- all(c("mean","min","max") %in% names(input_spec)) && any(!is.na(ctrl[[input_spec[["mean"]]]])) && any(!is.na(ctrl[[input_spec[["min"]]]]))
+      g_has_med_iqr <- all(c("median","q1","q3") %in% names(input_spec)) && any(!is.na(ctrl[[input_spec[["median"]]]])) && any(!is.na(ctrl[[input_spec[["q1"]]]]))
+      g_has_med_rng <- all(c("median","min","max") %in% names(input_spec)) && any(!is.na(ctrl[[input_spec[["median"]]]])) && any(!is.na(ctrl[[input_spec[["min"]]]]))
 
       if (g_has_sd) {
         means[i] <- mean(trt[[input_spec[["mean"]]]], na.rm=TRUE) - mean(ctrl[[input_spec[["mean"]]]], na.rm=TRUE)
