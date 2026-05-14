@@ -326,6 +326,14 @@ forest.spima <- function(x, log_scale = FALSE, study_labels = NULL,
   invisible(x)
 }
 
+#' Alias for \code{forest.spima} that works when \code{metafor::forest} masks
+#' the generic. Always call this directly: \code{spima_forest(res)}.
+#' @rdname forest.spima
+#' @export
+spima_forest <- function(x, ...) {
+  forest(x, ...)
+}
+
 #' @export
 print.spima_abc <- function(x, ...) {
   cat("spima ABC-SMC result\n")
@@ -429,16 +437,30 @@ plot.spima_subgroup <- function(x, parameter = NULL, ...) {
 # -------- as.data.frame methods for result table output --------
 
 #' @export
-as.data.frame.spima <- function(x, ...) {
+as.data.frame.spima <- function(x, probs = c(0.025, 0.5, 0.975), ...) {
   s <- x$abc_result$summary
   pnames <- names(s)
+  post <- x$abc_result$posterior
+  # Compute requested quantiles from weighted posterior
+  qnames <- sprintf("q%.3g", probs * 100)
+  qcols <- as.data.frame(lapply(probs, function(p) {
+    sapply(pnames, function(nm) {
+      theta_col <- if (nm == "mu") 1 else 2  # mu=1, tau=2 typically
+      vals <- post$theta[, nm]
+      w <- post$weights
+      o <- order(vals)
+      cum_w <- cumsum(w[o]) / sum(w)
+      idx <- min(which(cum_w >= p))
+      vals[o][idx]
+    })
+  }))
+  names(qcols) <- qnames
+
   tab <- data.frame(
     parameter = pnames,
     mean = sapply(pnames, function(p) s[[p]]["mean"]),
     sd   = sapply(pnames, function(p) s[[p]]["sd"]),
-    q2.5 = sapply(pnames, function(p) s[[p]]["q2.5"]),
-    q50  = sapply(pnames, function(p) s[[p]]["q50"]),
-    q97.5 = sapply(pnames, function(p) s[[p]]["q97.5"]),
+    qcols,
     row.names = NULL, stringsAsFactors = FALSE
   )
   tab

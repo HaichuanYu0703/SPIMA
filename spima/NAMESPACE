@@ -36,6 +36,7 @@ export(spima_generic_observed_stats)
 export(spima_generic_distance)
 
 export(forest)
+export(spima_forest)
 export(spima_int)
 export(spima_int_validate)
 

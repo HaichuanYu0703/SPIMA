@@ -79,6 +79,7 @@ smc_control <- function(n_particles      = 2000,
 run_abc_smc <- function(prior_obj, sim_fn, distance_fn, obs_stats, ctrl, ...) {
 
   P <- ctrl$n_particles
+  P_init <- P  # store initial particle count for ESS threshold
   n_par <- length(prior_obj)
   par_names <- names(prior_obj)
 
@@ -276,7 +277,7 @@ run_abc_smc <- function(prior_obj, sim_fn, distance_fn, obs_stats, ctrl, ...) {
     }
 
     # Early stop if ESS collapses
-    if (new_ess < ctrl$ess_min * P) {
+    if (new_ess < ctrl$ess_min * P_init) {
       if (ctrl$verbose) cat("ESS below threshold -> stopping.\n")
       break
     }
