@@ -2,8 +2,11 @@
 ^\.git$
 ^\.Rproj\.user$
 ^.*\.Rcheck$
+^spima/src/.*\.o$
+^spima/src/.*\.dll$
 ^src/.*\.o$
 ^src/.*\.dll$
+^.*spima\.dll$
 ^src/symbols\.rds$
 ^TinyTeX.*\.exe$
 ^_check_log\.txt$

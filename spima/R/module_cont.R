@@ -22,10 +22,10 @@ spima_cont_validate <- function(data, input_spec) {
     stop("input_spec must contain 'n' (sample size column).")
   }
 
-  # When both mean/SD and quantile columns are present, warn and prefer mean/SD
+  # When multiple input columns are present, auto-detect per study
   if (has_mean_sd && (has_median_iqr || has_range || has_mean_range)) {
-    message("Both mean/SD and quantile columns detected in input_spec. ",
-            "Using mean/SD format.")
+    message("Multiple input formats detected in input_spec. ",
+            "SPI-MA will auto-detect format per study (mean+SD / median+IQR / etc.).")
   }
 
   for (col in unlist(input_spec)) {

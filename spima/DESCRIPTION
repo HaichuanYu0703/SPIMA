@@ -29,6 +29,8 @@ LinkingTo:
     Rcpp,
     RcppArmadillo
 SystemRequirements: GNU make
+URL: https://github.com/HaichuanYu0703/SPIMA
+BugReports: https://github.com/HaichuanYu0703/SPIMA/issues
 Encoding: UTF-8
 LazyData: true
 NeedsCompilation: yes

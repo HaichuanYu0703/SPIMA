@@ -50,7 +50,11 @@ print.spima <- function(x, ...) {
   if (!is.null(x$family) && x$outcome_type == "continuous")
     cat(" [family: ", x$family, "]", sep = "")
   cat("\n")
-  cat("  ABC-SMC generations:", length(x$abc_result$generations), "\n")
+  gen <- x$abc_result$generations
+  last_gen <- gen[[length(gen)]]
+  cat("  ABC-SMC generations:", length(gen),
+      "  final ESS:", round(last_gen$ess, 1),
+      "  final eps:", signif(last_gen$epsilon, 3), "\n")
 
   # Show DTA derived quantities first
   if (x$outcome_type == "dta" && !is.null(x$abc_result$dta_derived)) {
@@ -437,7 +441,7 @@ plot.spima_subgroup <- function(x, parameter = NULL, ...) {
 # -------- as.data.frame methods for result table output --------
 
 #' @export
-as.data.frame.spima <- function(x, probs = c(0.025, 0.5, 0.975), ...) {
+as.data.frame.spima <- function(x, row.names = NULL, optional = FALSE, ..., probs = c(0.025, 0.5, 0.975)) {
   s <- x$abc_result$summary
   pnames <- names(s)
   post <- x$abc_result$posterior

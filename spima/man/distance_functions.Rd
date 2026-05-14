@@ -27,7 +27,7 @@ summary statistics to the observed summary statistics.
 \item \code{spima_bin_distance()}: Binary outcome: Euclidean distance on
 (possibly weighted) log-odds scale.
 
-\item \code{spima_cont_distance()}: Continuous outcome: sum of squared
-standardised differences in means and SDs.
+\item \code{spima_cont_distance()}: Continuous outcome: inverse-variance weighted
+Euclidean distance on study-level mean differences.
 
 }}

@@ -6,6 +6,7 @@
 \usage{
 smc_control(
   n_particles = 2000,
+  n_particles_max = 10000,
   n_generations = 10,
   epsilon_init = NULL,
   epsilon_decay = 0.85,
