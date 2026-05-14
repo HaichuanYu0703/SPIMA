@@ -23,17 +23,19 @@
 #'
 #' @examples
 #' smc_control(n_particles = 500, n_generations = 8)
-smc_control <- function(n_particles   = 2000,
-                        n_generations = 10,
-                        epsilon_init  = NULL,
-                        epsilon_decay = 0.85,
-                        ess_min       = 0.3,
-                        kernel        = "gaussian",
+smc_control <- function(n_particles      = 2000,
+                        n_particles_max  = 10000,
+                        n_generations    = 10,
+                        epsilon_init     = NULL,
+                        epsilon_decay    = 0.85,
+                        ess_min          = 0.3,
+                        kernel           = "gaussian",
                         accept_rate_target = 0.2,
-                        verbose       = TRUE,
-                        parallel      = FALSE,
-                        n_cores       = NULL) {
-  stopifnot(n_particles > 0, n_generations > 0)
+                        verbose          = TRUE,
+                        parallel         = FALSE,
+                        n_cores          = NULL) {
+  stopifnot(n_particles > 0, n_particles_max >= n_particles)
+  stopifnot(n_generations > 0)
   stopifnot(epsilon_decay > 0, epsilon_decay < 1)
   stopifnot(ess_min > 0, ess_min <= 1)
   stopifnot(accept_rate_target > 0, accept_rate_target < 1)
@@ -47,6 +49,7 @@ smc_control <- function(n_particles   = 2000,
   structure(
     list(
       n_particles         = n_particles,
+      n_particles_max     = n_particles_max,
       n_generations       = n_generations,
       epsilon_init        = epsilon_init,
       epsilon_decay       = epsilon_decay,
@@ -81,15 +84,25 @@ run_abc_smc <- function(prior_obj, sim_fn, distance_fn, obs_stats, ctrl, ...) {
 
   # --- Setup parallel cluster (Windows-compatible) ---
   if (ctrl$parallel && .Platform$OS.type == "windows") {
-    cl <- parallel::makeCluster(ctrl$n_cores)
-    on.exit(parallel::stopCluster(cl))
-    # Ensure base packages available on workers
-    invisible(parallel::clusterEvalQ(cl, {
-      require(spima, quietly = TRUE)
-      require(lme4, quietly = TRUE)
+    cl <- tryCatch({
+      cl_tmp <- parallel::makeCluster(ctrl$n_cores)
+      invisible(parallel::clusterEvalQ(cl_tmp, {
+        require(spima, quietly = TRUE)
+        require(lme4, quietly = TRUE)
+        NULL
+      }))
+      cl_tmp
+    }, error = function(e) {
+      if (ctrl$verbose) cat("  Parallel cluster failed (", e$message,
+                            "); reverting to sequential.\n")
       NULL
-    }))
-    ctrl$._cl <- cl
+    })
+    if (!is.null(cl)) {
+      on.exit(parallel::stopCluster(cl))
+      ctrl$._cl <- cl
+    } else {
+      ctrl$parallel <- FALSE
+    }
   }
 
   # --- Generation 1: prior sampling ---
@@ -233,6 +246,15 @@ run_abc_smc <- function(prior_obj, sim_fn, distance_fn, obs_stats, ctrl, ...) {
       # Hard threshold: if too few accepted, keep previous epsilon and retry
       if (ctrl$verbose) cat("Only", n_accept, "accepted -> stopping.\n")
       break
+    }
+
+    # Adaptive particle count: increase N if acceptance rate is too low
+    accept_rate <- n_accept / P
+    if (accept_rate < 0.5 * ctrl$accept_rate_target && P < ctrl$n_particles_max) {
+      P_new <- min(P * 2, ctrl$n_particles_max)
+      if (ctrl$verbose) cat("  Low acceptance (", round(accept_rate, 3),
+                            "); increasing particles", P, "->", P_new, "\n")
+      P <- P_new
     }
 
     # Normalise weights

@@ -28,8 +28,13 @@ spima_cont_distance <- function(sim_stats, obs_stats) {
   nm_m <- intersect(names(sim_stats$means), names(obs_stats$means))
   if (length(nm_m) == 0) return(Inf)
 
-  # Inverse-variance weights from pooled SDs
-  w <- 1 / (obs_stats$sds[nm_m]^2 + 1e-8)
+  # Use pre-computed precision weights if available (from cont_observed_stats),
+  # otherwise fall back to pooled SD-based weights
+  w <- if (!is.null(attr(obs_stats$sds, "weights"))) {
+    attr(obs_stats$sds, "weights")[nm_m]
+  } else {
+    1 / (obs_stats$sds[nm_m]^2 + 1e-8)
+  }
   dist_weighted_euclidean(sim_stats$means[nm_m], obs_stats$means[nm_m], w)
 }
 

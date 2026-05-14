@@ -211,9 +211,15 @@ forest <- function(x, ...) {
 #' and the SPI-MA pooled posterior estimate.
 #'
 #' @param x A \code{spima} result object.
+#' @param log_scale If \code{TRUE}, use logarithmic x-axis (for OR/HR).
+#' @param study_labels Optional character vector of study labels.
+#' @param col Color for study-level points and CIs.
+#' @param pooled_col Color for the pooled diamond.
+#' @param xlab X-axis label (auto-detected if NULL).
 #' @param ... Additional arguments passed to \code{plot}.
 #' @export
-forest.spima <- function(x, ...) {
+forest.spima <- function(x, log_scale = FALSE, study_labels = NULL,
+                          col = "grey40", pooled_col = "#2166AC", xlab = NULL, ...) {
   post <- as.data.frame(x)
   mu_post <- post$q50[post$parameter == "mu"]
   mu_ci   <- c(post$q2.5[post$parameter == "mu"], post$q97.5[post$parameter == "mu"])
@@ -233,22 +239,28 @@ forest.spima <- function(x, ...) {
       n_t <- sum(rows[[n_col]][rows[[grp_col]] == grps[2]], na.rm = TRUE)
       sei[s] <- obs$sds[s] * sqrt(1/n_c + 1/n_t)
     }
-    null_val <- 0; xlab <- "Mean Difference"
+    null_val <- 0
+    if (is.null(xlab)) xlab <- "Mean Difference"
   } else if (x$outcome_type == "binary") {
     obs <- spima_bin_observed_stats(x$data, x$input_spec)
     yi <- obs
     sei <- sqrt(1 / attr(obs, "weights"))
-    null_val <- 0; xlab <- "Log Odds Ratio"
+    null_val <- 0
+    if (is.null(xlab)) xlab <- "Log Odds Ratio"
   } else if (x$outcome_type == "generic") {
     obs <- spima_generic_observed_stats(x$data, x$input_spec)
     yi <- obs
     sei <- sqrt(1 / attr(obs, "weights"))
-    null_val <- 0; xlab <- "Effect Estimate"
+    null_val <- 0
+    if (is.null(xlab)) xlab <- if (log_scale) "Odds / Hazard Ratio" else "Effect Estimate"
   } else {
     stop("Forest plot not available for this outcome type.")
   }
 
-  # ---- Forest plot (base graphics) ----
+  # Study labels
+  if (is.null(study_labels)) study_labels <- names(yi)
+
+  # ---- Forest plot ----
   k <- length(yi)
   old_par <- par(mar = c(4, 6, 3, 6), no.readonly = TRUE)
   on.exit(par(old_par))
@@ -257,37 +269,58 @@ forest.spima <- function(x, ...) {
   y_study <- y[1:k]
   y_pool  <- y[k + 1]
 
-  all_lo <- c(yi - 1.96 * sei, mu_ci[1])
-  all_hi <- c(yi + 1.96 * sei, mu_ci[2])
-  xlim <- range(c(all_lo, all_hi, null_val), na.rm = TRUE)
-  xlim <- xlim + c(-1, 1) * diff(xlim) * 0.1
+  ci_lo <- yi - 1.96 * sei
+  ci_hi <- yi + 1.96 * sei
 
-  plot(NA, xlim = xlim, ylim = c(0.5, k + 2.5),
-       xlab = xlab, ylab = "", yaxt = "n", bty = "n", ...)
-  abline(v = null_val, lty = 2, col = "grey60")
-
-  for (i in seq_len(k)) {
-    ci_lo <- yi[i] - 1.96 * sei[i]
-    ci_hi <- yi[i] + 1.96 * sei[i]
-    segments(ci_lo, y_study[i], ci_hi, y_study[i], col = "grey40", lwd = 1.5)
-    points(yi[i], y_study[i], pch = 15, cex = 1.2, col = "grey40")
+  if (log_scale) {
+    # Transform to log scale for display
+    yi_show <- exp(yi)
+    ci_lo_show <- exp(ci_lo)
+    ci_hi_show <- exp(ci_hi)
+    mu_post_show <- exp(mu_post)
+    mu_ci_show <- exp(mu_ci)
+    null_display <- 1
+  } else {
+    yi_show <- yi; ci_lo_show <- ci_lo; ci_hi_show <- ci_hi
+    mu_post_show <- mu_post; mu_ci_show <- mu_ci
+    null_display <- null_val
   }
 
-  diamond_x <- c(mu_post, mu_ci[1], mu_post, mu_ci[2])
-  diamond_y <- y_pool + c(0, -0.25, 0, 0.25)
-  polygon(diamond_x, diamond_y, col = "#2166AC", border = "#2166AC")
+  all_x <- c(ci_lo_show, ci_hi_show, mu_ci_show)
+  xlim <- range(all_x[is.finite(all_x)], na.rm = TRUE)
+  xlim <- xlim + c(-1, 1) * diff(xlim) * 0.08
 
+  plot(NA, xlim = xlim, ylim = c(0.5, k + 2.5),
+       xlab = xlab, ylab = "", yaxt = "n", bty = "n", log = if (log_scale) "x" else "", ...)
+  abline(v = null_display, lty = 2, col = "grey60")
+
+  # Study-level CIs and points
+  for (i in seq_len(k)) {
+    segments(ci_lo_show[i], y_study[i], ci_hi_show[i], y_study[i],
+             col = col, lwd = 1.5)
+    points(yi_show[i], y_study[i], pch = 15, cex = 1.2, col = col)
+  }
+
+  # SPI-MA pooled diamond
+  diamond_x <- c(mu_post_show, mu_ci_show[1], mu_post_show, mu_ci_show[2])
+  diamond_y <- y_pool + c(0, -0.25, 0, 0.25)
+  polygon(diamond_x, diamond_y, col = pooled_col, border = pooled_col)
+
+  # Labels
   usr <- par("usr")
   xpad <- diff(usr[1:2]) * 0.02
-  text(usr[1] - xpad, y_study, names(yi), adj = 1, cex = 0.75, xpd = TRUE)
-  text(usr[1] - xpad, y_pool, "SPI-MA (posterior)", adj = 1, cex = 0.8, font = 2, xpd = TRUE)
+  text(usr[1] - xpad, y_study, study_labels, adj = 1, cex = 0.75, xpd = TRUE)
+  text(usr[1] - xpad, y_pool, "SPI-MA (posterior)", adj = 1, cex = 0.8,
+       font = 2, xpd = TRUE)
 
+  # Value annotations
+  fmt <- if (log_scale) "%.3f [%.3f, %.3f]" else "%.2f [%.2f, %.2f]"
   for (i in seq_len(k)) {
-    txt <- sprintf("%.2f [%.2f, %.2f]", yi[i], yi[i] - 1.96 * sei[i], yi[i] + 1.96 * sei[i])
+    txt <- sprintf(fmt, yi_show[i], ci_lo_show[i], ci_hi_show[i])
     text(usr[2] + xpad, y_study[i], txt, adj = 0, cex = 0.65, xpd = TRUE)
   }
   text(usr[2] + xpad, y_pool,
-       sprintf("%.2f [%.2f, %.2f]", mu_post, mu_ci[1], mu_ci[2]),
+       sprintf(fmt, mu_post_show, mu_ci_show[1], mu_ci_show[2]),
        adj = 0, cex = 0.7, font = 2, xpd = TRUE)
 
   invisible(x)

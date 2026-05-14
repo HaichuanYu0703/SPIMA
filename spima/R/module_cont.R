@@ -450,6 +450,8 @@ spima_cont_observed_stats <- function(data, input_spec) {
     }
   }
 
+  # Attach inverse-variance weights (1/SE^2) for distance computation
+  sds <- structure(sds, weights = 1 / (sds^2 + 1e-8))
   list(means = means, sds = sds)
 }
 
